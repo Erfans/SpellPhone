@@ -16,13 +16,13 @@
         <h1>Phone to words</h1>
         <p class="lead">Convert a phone number based on the key pad letters to words.</p>
 
-        <form class="form-inline">
+        <div class="form-inline">
             <div class="form-group mr-2 mb-2">
                 <label for="phone-number" class="sr-only">Phone number</label>
                 <input type="text" class="form-control" id="phone-number" placeholder="000-000-000">
             </div>
-            <button type="submit" class="btn btn-primary mb-2">Convert</button>
-        </form>
+            <button id="convert" type="button" class="btn btn-primary mb-2">Convert</button>
+        </div>
         <p id="output"></p>
     </div>
 </div>
@@ -36,10 +36,27 @@
 <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"
         integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM"
         crossorigin="anonymous"></script>
-<script src="http://127.0.0.1:8000/phone-to-words/phone2words.js"></script>
 
-<script>
+<script type="module">
+    import {SpellPhone} from "./spellphone.js";
 
+    let sp = new SpellPhone();
+    sp.loadDictionary('en');
+
+    $('#convert').click(function () {
+        let phone = $('#phone-number').val();
+        let spells = sp.convert(phone, 'en');
+
+        $('#output').html('');
+
+        if (spells.length) {
+            spells.slice(0, 20).forEach(function (spell) {
+                $('#output').append('<p>' + spell + '</p>');
+            });
+        } else {
+            $('#output').append('<div class="alert alert-warning">No match has been found.</div>');
+        }
+    });
 </script>
 
 </body>
