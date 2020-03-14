@@ -3,14 +3,13 @@
  */
 export class Node {
 
-    constructor(value) {
-        this.value = value;
-        this.ancestors = [];
-        this.descendants = [];
-        this.meta = {};
-    }
-
-    provideNodeArray(nodes, varName) {
+    /**
+     * Prepare the input as an array of nodes
+     * @param nodes
+     * @param varName
+     * @return {Node[]}
+     */
+    static provideNodeArray(nodes, varName = 'input') {
         if (nodes instanceof Node) {
             nodes = [nodes]
         }
@@ -28,12 +27,45 @@ export class Node {
         return nodes;
     }
 
+    /**
+     * Generate a graph base on input list
+     *
+     * @param inputArray
+     * @param generateNode
+     */
+    static generateGraph(inputArray, generateNode) {
+
+        if (inputArray.length === 0) {
+            return [];
+        }
+
+        let graph = {};
+
+        for (let i = 0; i < inputArray.length; i++) {
+            let node = generateNode(inputArray[i]);
+            graph[i] = Node.provideNodeArray(node);
+        }
+
+        for (let i = 1; i < Object.keys(graph).length; i++) {
+            graph[i - 1].forEach(node => node.addDescendants(graph[i]));
+        }
+
+        return graph[0];
+    }
+
+    constructor(value) {
+        this.value = value;
+        this.ancestors = [];
+        this.descendants = [];
+        this.meta = {};
+    }
+
     addAncestors(ancestors) {
-        this.ancestors.push(...this.provideNodeArray(ancestors, 'ancestors'))
+        this.ancestors.push(...Node.provideNodeArray(ancestors, 'ancestors'))
     }
 
     addDescendants(descendants) {
-        this.descendants.push(...this.provideNodeArray(descendants, 'descendants'))
+        this.descendants.push(...Node.provideNodeArray(descendants, 'descendants'))
     }
 
     travers(callback, ancestorsRef = []) {
@@ -54,6 +86,12 @@ export class Node {
 
         this.descendants.forEach(element => element.travers(callback, ancestors));
     }
+
+    toArray() {
+        let array = [];
+        this.travers(path => array.push(path));
+        return array;
+    }
 }
 
 /**
@@ -63,7 +101,7 @@ export class SpellPhone {
 
     static get wordListResources() {
         return {
-            'en': './common_english_words.json'
+            'en': 'https://cdn.jsdelivr.net/gh/dwyl/english-words/words_dictionary.json'
         }
     };
 
@@ -84,6 +122,8 @@ export class SpellPhone {
     }
 
     _wordList = {};
+
+    _numberWordsCache = {};
 
     /**
      * Add a new word list for a language
@@ -107,16 +147,18 @@ export class SpellPhone {
     }
 
     keyMap = {
-        '0': ' ',
-        '1': '&',
-        '2': 'abc',
-        '3': 'def',
-        '4': 'ghi',
-        '5': 'jkl',
-        '6': 'mno',
-        '7': 'pqrs',
-        '8': 'tuv',
-        '9': 'wxyz'
+        'en': {
+            '0': ' ',
+            '1': '&',
+            '2': 'abc',
+            '3': 'def',
+            '4': 'ghi',
+            '5': 'jkl',
+            '6': 'mno',
+            '7': 'pqrs',
+            '8': 'tuv',
+            '9': 'wxyz'
+        }
     };
 
     /**
@@ -172,6 +214,30 @@ export class SpellPhone {
      */
     convert(number, lang) {
 
+        let nodes = this.generateNodes(number, lang);
+        let paths = [];
+        nodes.forEach(node => paths = paths.concat(node.toArray()));
+
+        paths.map(a => {
+            a.rank = a.reduce((total, node) => node.meta.rank + total, 0);
+            return a;
+        });
+
+        paths = paths.filter(a => a.rank > 0);
+        paths.sort((a, b) => b.rank - a.rank);
+
+        return paths;
+    }
+
+    /**
+     * Convert phone number to array of node
+     *
+     * @param number
+     * @param lang
+     * @returns Node[]
+     */
+    generateNodes(number, lang) {
+
         if (!lang) {
             throw Error('Language argument is not defined.');
         }
@@ -180,67 +246,22 @@ export class SpellPhone {
             throw Error('Word list for this language is not loaded yet.');
         }
 
-        let result = [];
-        let nodes = this.generateNodes(number.toString(), lang);
-        let wordNodes = [];
+        number = number.toString().replace(/\D/gi, '');
 
-        nodes.forEach(pathBegin => {
-            pathBegin.travers(function (path) {
-                let pathWordNodes = {};
-                for (let i = 0; i < path.length; i++) {
-                    pathWordNodes[i] = [];
-                    path[i].meta.words.forEach(word => pathWordNodes[i].push(new Node(word)));
-                }
+        if (number.length === 0) {
+            return [];
+        }
 
-                for (let i = 1; i < Object.keys(pathWordNodes).length; i++) {
-                    pathWordNodes[i - 1].forEach(wordNode => wordNode.addDescendants(pathWordNodes[i]));
-                }
-
-                wordNodes = wordNodes.concat(pathWordNodes[0]);
-            });
-        });
-
-        wordNodes.forEach(wordNode =>
-            wordNode.travers(function (path) {
-                result.push(path.map(n => n.value).join('-'));
-            })
-        );
-
-        result.sort(function (a, b) {
-            let aValue = a.replace(/-/g, '').replace(/\d/g, "").length - (a.split('-').length - 1);
-            let bValue = b.replace(/-/g, '').replace(/\d/g, "").length - (b.split('-').length - 1);
-
-            if (aValue > bValue) {
-                return -1;
-            }
-
-            if (aValue < bValue) {
-                return 1;
-            }
-
-            return 0;
-        });
-
-        return result
-    }
-
-    /**
-     * Convert phone number to array of node
-     *
-     * @param text
-     * @param lang
-     * @returns Node[]
-     */
-    generateNodes(text, lang) {
         let nodes = [];
 
-        for (let i = 1; i <= text.length; i++) {
-            for (let j = 0; j + i <= text.length; j++) {
-                let node = new Node(text.substring(j, j + i));
+        for (let i = 1; i <= number.length; i++) {
+            for (let j = 0; j + i <= number.length; j++) {
+                let node = new Node(number.substring(j, j + i));
                 node.meta.begin = j;
                 node.meta.end = j + i;
                 node.meta.words = this.generateWords(node.value, lang);
                 node.meta.words.push(node.value);
+                node.meta.rank = (i <= 1 || node.meta.words.length <= 1 ? 0 : i * i);
                 nodes.push(node);
             }
         }
@@ -248,7 +269,10 @@ export class SpellPhone {
         // link nodes
         nodes.forEach(parentNode =>
             parentNode.addDescendants(
-                nodes.filter(n => n.meta.begin === parentNode.meta.end)
+                nodes.filter(n =>
+                    (n.meta.begin === parentNode.meta.end) &&
+                    (n.meta.rank !== 0 || parentNode.meta.rank)
+                )
             )
         );
 
@@ -264,33 +288,32 @@ export class SpellPhone {
      */
     generateWords(value, lang) {
 
-        let digits = value.split('');
-
-        let nodes = {};
         let self = this;
 
-        for (let i = 0; i < digits.length; i++) {
-            const digit = digits[i];
-            const chars = self.keyMap[digit].split('');
-            nodes[i] = [];
-
-            chars.forEach(char => {
-                nodes[i].push(new Node(char));
-            });
+        if (!(lang in this._numberWordsCache)) {
+            this._numberWordsCache[lang] = {};
         }
 
-        for (let i = 1; i < Object.keys(nodes).length; i++) {
-            nodes[i - 1].forEach(node => node.addDescendants(nodes[i]));
+        if (value in this._numberWordsCache[lang]) {
+            // pass by value
+            return this._numberWordsCache[lang][value].slice(0);
         }
+
+        let nodes = Node.generateGraph(value.split(''), digit => {
+            const chars = self.keyMap[lang][digit].split('');
+            return chars.map(char => new Node(char));
+        });
 
         let words = [];
 
-        nodes[0].forEach(node => node.travers(function (path) {
+        nodes.forEach(node => node.travers(path => {
             let token = path.map(node => node.value).join('');
             if (self.isWord(token, lang)) {
                 words.push(token);
             }
         }));
+
+        this._numberWordsCache[lang][value] = words.slice(0);
 
         return words;
     }
@@ -303,6 +326,12 @@ export class SpellPhone {
      * @returns {boolean}
      */
     isWord(token, lang) {
-        return this.getWordList(lang).includes(token);
+        let wordList = this.getWordList(lang);
+
+        if (Array.isArray(wordList)) {
+            return wordList.includes(token);
+        }
+
+        return wordList[token] && true;
     }
 }
