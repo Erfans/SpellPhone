@@ -12,8 +12,8 @@
 
 <div class="container">
     <div class="row mt-5">
-        <div class="col-12 col-lg-6">
-            <h1>Phone to words</h1>
+        <div class="col-12">
+            <h1>Spell Phone</h1>
             <p class="lead">
                 Convert a phone number based on the key pad letters to words.
             </p>
@@ -36,6 +36,20 @@
 
             <p id="output"></p>
             </p>
+        </div>
+        <div class="col-12">
+            <div class="card">
+                <h4 class="card-header">References</h4>
+                <div class="card-body">
+                    <h5 class="card-title">English word list</h5>
+                    <p class="card-text">
+                        For a list of valid english words, repository of
+                        <a href="https://github.com/dwyl/english-words">english-words</a>
+                        is used.
+                    </p>
+                </div>
+            </div>
+
         </div>
     </div>
 
@@ -89,7 +103,7 @@
                     });
 
                     $form.append($formGroup);
-                    $form.append(`<span class="badge badge-primary">${spell.rank}</span>`);
+                    $form.append(`<span class="badge badge-secondary" title="rank">${spell.rank}</span>`);
                     $output.append($form);
                 });
             } else {
