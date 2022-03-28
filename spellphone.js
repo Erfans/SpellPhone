@@ -55,17 +55,17 @@ export class Node {
 
     constructor(value) {
         this.value = value;
-        this.ancestors = [];
         this.descendants = [];
         this.meta = {};
     }
 
-    addAncestors(ancestors) {
-        this.ancestors.push(...Node.provideNodeArray(ancestors, 'ancestors'))
-    }
-
     addDescendants(descendants) {
         this.descendants.push(...Node.provideNodeArray(descendants, 'descendants'))
+    }
+
+    removeDescendants(descendants) {
+        const descendantsArr = Node.provideNodeArray(descendants, 'descendants');
+        this.descendants = this.descendants.filter(d => !descendantsArr.includes(d));
     }
 
     travers(callback, ancestorsRef = []) {
@@ -101,7 +101,21 @@ export class SpellPhone {
 
     static get wordListResources() {
         return {
-            'en': 'https://cdn.jsdelivr.net/gh/dwyl/english-words/words_dictionary.json'
+            'en': {
+                source: 'https://cdn.jsdelivr.net/gh/aplumly/array-of-over-3000-english-words/javaArray.txt',
+                parser: function (text) {
+                    let regex = /"(\w+)"/g;
+
+                    let words = {};
+                    let match = regex.exec(text);
+                    while (match != null) {
+                        words[match[1]] = 1;
+                        match = regex.exec(text);
+                    }
+
+                    return words;
+                }
+            }
         }
     };
 
@@ -109,7 +123,7 @@ export class SpellPhone {
         return Object.keys(SpellPhone.wordListResources);
     }
 
-    static getWordListUrl(lang) {
+    static getWordListSource(lang) {
         if (SpellPhone.getSupportedLanguages().includes(lang)) {
             return SpellPhone.wordListResources[lang];
         }
@@ -168,10 +182,10 @@ export class SpellPhone {
      * @returns {boolean|Promise<void>}
      */
     loadDictionary(lang) {
-        const dictionaryUrl = SpellPhone.getWordListUrl(lang);
-        if (dictionaryUrl) {
-            return this.getJSON(dictionaryUrl)
-                .then(response => this.addWordList(lang, response))
+        const wordListSource = SpellPhone.getWordListSource(lang);
+        if (wordListSource) {
+            return this.downloadSource(wordListSource.source)
+                .then(response => this.addWordList(lang, wordListSource.parser(response)))
                 .catch(response => console.log(response));
         }
 
@@ -179,19 +193,19 @@ export class SpellPhone {
     }
 
     /**
-     * Load a json from a path
+     * Load a remote source from a path
      *
      * @param url
      * @returns {Promise<Object>}
      */
-    getJSON(url) {
+    downloadSource(url) {
         return new Promise(function (resolve, reject) {
             let request = new XMLHttpRequest();
             request.overrideMimeType('application/json');
             request.open('GET', url, true);
             request.onload = function () {
                 if (request.status === 200) {
-                    resolve(JSON.parse(request.responseText));
+                    resolve(request.responseText);
                 } else {
                     reject(Error(request.statusText));
                 }
@@ -276,6 +290,23 @@ export class SpellPhone {
             )
         );
 
+        const numberLength = number.length;
+        let hasChanged = true;
+
+        // reject the nodes that do not reach the end of string
+        while (hasChanged) {
+            hasChanged = false;
+            nodes.forEach(node => {
+                node.descendants.forEach(function (d, index, object) {
+                    if (d.meta.end !== numberLength && d.descendants.length === 0) {
+                        object.splice(index, 1);
+                        hasChanged = true;
+                    }
+                })
+            });
+        }
+
+        // return only the root nodes
         return nodes.filter(node => node.meta.begin === 0);
     }
 
